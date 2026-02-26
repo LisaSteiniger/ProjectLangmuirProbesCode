@@ -1,0 +1,5 @@
+;configuration;dischargeID;duration;duration_planned;durationHeating;frad;HHeRatio;overviewTable
+0;EKM004+2620;20241112.058;9.52;9.001;8.99864;;0.0018541574808841532;results/calculationTables/results_20241112.058.csv
+1;EKM004+2620;20241112.057;3.02;2.501;2.49896;;0.002050202634504371;results/calculationTables/results_20241112.057.csv
+2;EKM004+2620;20241112.060;15.52;15.001;14.99864;;0.001816612674200445;results/calculationTables/results_20241112.060.csv
+3;EKM004+2620;20241112.059;12.52;12.000999999;11.59004;;0.001798419458990164;results/calculationTables/results_20241112.059.csv

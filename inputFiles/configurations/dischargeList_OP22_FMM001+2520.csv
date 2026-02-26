@@ -1,0 +1,4 @@
+;configuration;dischargeID;duration;duration_planned;durationHeating;frad;HHeRatio;overviewTable
+0;FMM001+2520;20241127.073;6.12;6.001;5.99792;;0.0017815030121391341;results/calculationTables/results_20241127.073.csv
+1;FMM001+2520;20241127.074;50.12;50.001;49.99828;;0.0017550893214591048;results/calculationTables/results_20241127.074.csv
+2;FMM001+2520;20241127.069;10.52;10.001;9.99752;;0.001837535213974158;results/calculationTables/results_20241127.069.csv

@@ -1,0 +1,4 @@
+;configuration;dischargeID;duration;duration_planned;durationHeating;frad;HHeRatio;overviewTable
+0;EJM008+2520;20241127.052;1.361;8.001;0.81464;;0.0026013609336615093;results/calculationTables/results_20241127.052.csv
+1;EJM008+2520;20241127.055;8.12;8.001;7.9984;;0.0017817619408190429;results/calculationTables/results_20241127.055.csv
+2;EJM008+2520;20241127.054;15.12;15.001;14.99864;;0.0017748827249795644;results/calculationTables/results_20241127.054.csv
