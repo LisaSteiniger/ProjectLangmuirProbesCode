@@ -119,6 +119,12 @@ def processLangmuirProbeData(LP_list: list[str],
         VchangeListDict = []   #do the extrema change significantly during a plunge? e.g. minima getting higher (=shortening occurs) or lower (=shortening disappears)
         RlimitListDict = []    #percentage of averaged R_probeline values that lie below the threshold of R_limit
 
+        #values for electron density, electron temperature and their standard deviations
+        neListDict = []
+        TeListDict = []
+        sneListDict = []
+        sTeListDict = []
+
         for counter, dischargeID, dischargeCampaign, dischargeConfiguration in zip(range(len(dischargeIDs)), dischargeIDs, dischargeCampaigns, dischargeConfigurations):
             dischargeID = str(dischargeID)
             print(dischargeID)
@@ -130,6 +136,10 @@ def processLangmuirProbeData(LP_list: list[str],
             VlimitListDict.append(results[2])
             VchangeListDict.append(results[3])
             RlimitListDict.append(results[4])
+            neListDict.append(results[5])
+            TeListDict.append(results[6])
+            sneListDict.append(results[7])
+            sTeListDict.append(results[8])
         
             campaignListDict.append([dischargeCampaign]*len(plungeListDict[-1]))
             configurationListDict.append([dischargeConfiguration]*len(plungeListDict[-1]))
@@ -143,7 +153,12 @@ def processLangmuirProbeData(LP_list: list[str],
                                         'plunge': list(itertools.chain.from_iterable(plungeListDict)),
                                         'V_limit_failure': list(itertools.chain.from_iterable(VlimitListDict)),
                                         'V_limit_change': list(itertools.chain.from_iterable(VchangeListDict)),
-                                        'R_limit_failure': list(itertools.chain.from_iterable(RlimitListDict))})
+                                        'R_limit_failure': list(itertools.chain.from_iterable(RlimitListDict)),
+                                        'ne': list(itertools.chain.from_iterable(neListDict)),
+                                        'std_ne': list(itertools.chain.from_iterable(sneListDict)),
+                                        'Te': list(itertools.chain.from_iterable(TeListDict)),
+                                        'std_Te': list(itertools.chain.from_iterable(sTeListDict))})
+                
                 LP_Dict.to_csv(f'results/LP_{LP}/{LP}_dischargePlungeList_FailureIndicators.csv', sep=';')
 
 #######################################################################################################################################################################        
@@ -164,13 +179,16 @@ def filterShorteningCandidatePlunges(LP_list: list[str],
     for LP in LP_list:
         failureIndices = []
         numberOfFailureIndicatorsList = []
-
+        V_limit_failure_yn_List = []
+        R_limit_failure_yn_List = []
         #note that all columns are interpreted as str values
         shorteningIndicatorList = pd.read_csv(f"results/LP_{LP}/{LP}_dischargePlungeList_FailureIndicators.csv", sep=';', dtype={'dischargeID': str})
 
         for i in range(len(shorteningIndicatorList['dischargeID'])):
             numberOfFailureIndicators = 0
-            
+            V_limit_failure_yn = False
+            R_limit_failure_yn = False
+
             #if no data was read out or no extrema were found, there is no valid data on the failure indicator columns
             if shorteningIndicatorList['V_limit_failure'][i] == 'no extrema':
                 continue
@@ -179,14 +197,17 @@ def filterShorteningCandidatePlunges(LP_list: list[str],
 
             if float(shorteningIndicatorList['V_limit_failure'][i]) > failureTolerance:
                 numberOfFailureIndicators += 1
+                V_limit_failure_yn = True
             if shorteningIndicatorList['V_limit_change'][i] == 'True':
                 numberOfFailureIndicators += 1
             if float(shorteningIndicatorList['R_limit_failure'][i]) > failureTolerance:
                 numberOfFailureIndicators += 1
-
+                R_limit_failure_yn = True
             if numberOfFailureIndicators != 0:
                 failureIndices.append(i)
                 numberOfFailureIndicatorsList.append(numberOfFailureIndicators)
+                V_limit_failure_yn_List.append(V_limit_failure_yn)
+                R_limit_failure_yn_List.append(R_limit_failure_yn)
             
         failureIndices = np.array(failureIndices)
 
@@ -196,9 +217,16 @@ def filterShorteningCandidatePlunges(LP_list: list[str],
                                         'dischargeID': np.array(shorteningIndicatorList['dischargeID'])[failureIndices],
                                         'plunge': np.array(shorteningIndicatorList['plunge'])[failureIndices],
                                         'V_limit_failure': np.array(shorteningIndicatorList['V_limit_failure'])[failureIndices],
+                                        'V_limit_failure_yn': V_limit_failure_yn_List,
                                         'V_limit_change': np.array(shorteningIndicatorList['V_limit_change'])[failureIndices],
                                         'R_limit_failure': np.array(shorteningIndicatorList['R_limit_failure'])[failureIndices],
-                                        'numberOfFailureIndicators': numberOfFailureIndicatorsList})
+                                        'R_limit_failure_yn': R_limit_failure_yn_List,
+                                        'numberOfFailureIndicators': numberOfFailureIndicatorsList,
+                                        'ne': np.array(shorteningIndicatorList['ne'])[failureIndices],
+                                        'std_ne': np.array(shorteningIndicatorList['std_ne'])[failureIndices],
+                                        'Te': np.array(shorteningIndicatorList['Te'])[failureIndices],
+                                        'std_Te': np.array(shorteningIndicatorList['std_Te'])[failureIndices]})
+    
         failureDataFrame = failureDataFrame.sort_values(by=["numberOfFailureIndicators", 'V_limit_change', 'R_limit_failure', 'V_limit_failure'], ascending=False)
         failureDataFrame.to_csv(f'results/LP_{LP}/{LP}failed_dischargePlungeList_FailureIndicators.csv', sep=';') 
 

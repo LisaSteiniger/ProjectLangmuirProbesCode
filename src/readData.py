@@ -64,10 +64,10 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
         probe = fetch.Probes(probe = LP, shot = dischargeID, piece_fetching = fetched) 
     except ValueError:
         print(f'value error in fetch.Probes for {LP} in {dischargeID}')
-        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan]
+        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan]
     except TypeError:
         print(f'type error in fetch.Probes for {LP} in {dischargeID}, most probably due to triggers')
-        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan]
+        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan]
 
     #quantities: time, probe voltage and probe current
     #-> stored as probe.time, probe.probe_voltage and probe.probe_current
@@ -75,7 +75,7 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
         probe.get_data()
     except ValueError:
         print(f'value error in get_data for {LP} in {dischargeID}')
-        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan] 
+        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan] 
 
     #quantity: input voltage is strored as probe.input_voltage
     probe.get_input_voltage()
@@ -91,7 +91,7 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
         pass
 
     else:
-        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan] 
+        return [dischargeID], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan], [np.nan] 
 
     #compensation for insertion delay depends on divertor unit
     #lower divertor unit Langmuir Probes have 0 as 2. digit in their ID, upper DU probes have 1
@@ -188,7 +188,6 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
         if sum(shortening_R) > 0:
             print(f'Shortening in {dischargeID} plunge {counter}?: {str(sum(shortening_R/len(shortening_R)))} of R_probeLine values below {str(R_limit)} Ohm')
         
-        
         #plotting
         if plotting:
             fig, [ax1, ax2, ax3] = plt.subplots(3, 1, figsize=(10, 15), layout='constrained', sharex=True)
@@ -219,8 +218,47 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
             fig.savefig(f'{safe}{LP}/{dischargeID}_plunge{str(counter)}.png', bbox_inches='tight')
             plt.show()
             plt.close()
+    
+    if LP[1] == '0':
+        LPs_lower = [LP]
+        LPs_upper = []
+        result_index = 0
+    else:
+        LPs_lower = []
+        LPs_upper = [LP]
+        result_index = 1
+    
+    results = readLangmuirProbeDataFromXdrive(dischargeID, LPs_lower, LPs_upper)
+    
+    if type(results) == str or (len(results[0+result_index][0]) == 1 and np.isnan(results[0+result_index][0][0])):
+        ne = [np.nan]*len(plunges)
+        sne = [np.nan]*len(plunges)
+        Te = [np.nan]*len(plunges)
+        sTe = [np.nan]*len(plunges)
+    else:
+        if len(results[0 + result_index][0]) == len(plunges):
+            ne = results[0 + result_index][0] 
+            Te = results[2 + result_index][0]
+            sne = results[8 + result_index][0]
+            sTe = results[10 + result_index][0]
+        else:
+            print(f'problem with number of plunges: measurement for {str(len(results[0 + result_index][0]))}, plunge times for {str(len(plunges))}')
+            if len(results[0 + result_index][0]) < len(plunges):
+                plunges = plunges[:len(results[0 + result_index][0])]
+                V_limit_change = V_limit_change[:len(results[0 + result_index][0])]
+                V_limit_failure = V_limit_failure[:len(results[0 + result_index][0])]
+                R_limit_failure = R_limit_failure[:len(results[0 + result_index][0])]
+                ne = results[0 + result_index][0] 
+                Te = results[2 + result_index][0]
+                sne = results[8 + result_index][0]
+                sTe = results[10 + result_index][0]
+            else:
+                ne = results[0 + result_index][0][:len(plunges)]
+                Te = results[2 + result_index][0][:len(plunges)]
+                sne = results[8 + result_index][0][:len(plunges)]
+                sTe = results[10 + result_index][0][:len(plunges)]
 
-    return [dischargeID]*len(plunges), plunges, V_limit_failure, V_limit_change, R_limit_failure
+    return [dischargeID]*len(plunges), plunges, V_limit_failure, V_limit_change, R_limit_failure, ne, Te, sne, sTe
 
 #######################################################################################################################################################################
 def readLangmuirProbeDataFromXdrive(dischargeID: str, 
@@ -298,23 +336,23 @@ def readLangmuirProbeDataFromXdrive(dischargeID: str,
         if not fail in LPs_lower:
             index_lower.remove(probes_lower.index(fail))
         else:
-            index_lower[probes_lower.index(fail)] = 'failed'
+            index_lower[index_lower.index(probes_lower.index(fail))] = f'failed_{probes_lower.index(fail)}'
     for fail in fails_upper:
         if not fail in LPs_upper:
             index_upper.remove(probes_upper.index(fail))
         else:
-            index_upper[probes_upper.index(fail)] = 'failed'
+            index_upper[index_upper.index(probes_upper.index(fail))] = f'failed_{int(probes_upper.index(fail))}'
 
     #needs at least one active Langmuir Probe to continue
     #test_index must contain that active Langmuir Probe as it will be used to test for correct units
     #test_data is the corresponing data set
-    if len(index_lower) != 0 and sum([x!='failed' for x in index_lower]) != 0:
-        failed = np.array([x!='failed' for x in index_lower])
-        test_index = np.array(index_lower)[failed]
+    if len(index_lower) != 0 and sum([type(x)==int for x in index_lower]) != 0:
+        failed = np.array([type(x)==int for x in index_lower])
+        test_index = int(np.array(index_lower)[failed][0])
         test_data = data_lower
-    elif len(index_upper) != 0 and sum([x!='failed' for x in index_upper]) != 0:
-        failed = np.array([x!='failed' for x in index_upper])
-        test_index = np.array(index_upper)[failed]
+    elif len(index_upper) != 0 and sum([type(x)==int for x in index_upper]) != 0:
+        failed = np.array([type(x)==int for x in index_upper])
+        test_index = int(np.array(index_upper)[failed][0])
         test_data = data_upper
     else:
         return f'No LP data available for {dischargeID}'
@@ -330,14 +368,14 @@ def readLangmuirProbeDataFromXdrive(dischargeID: str,
         #lists will hold the standard deviations of ne and Te for all active Langmuir Probes
         sne_lower, sne_upper, sTe_lower, sTe_upper = [], [], [], []
 
-        for i in index_lower:  
-            if i == 'failed':
+        for counter, i in enumerate(index_lower):  
+            if type(i)==str:
                 ne_lower.append([np.nan])          
                 sne_lower.append([np.nan])          
                 Te_lower.append([np.nan])          
                 sTe_lower.append([np.nan])          
                 t_lower.append([np.nan])
-
+                index_lower[counter] = int(i.split('_')[-1])
                 continue
 
             #filter out measurements that are nonexisting (fake measurement value for t = 0 is inserted)
@@ -352,14 +390,14 @@ def readLangmuirProbeDataFromXdrive(dischargeID: str,
 
             t_lower.append(list(np.array(data_lower[i].time)[~filter_lower]))
         
-        for i in index_upper:
-            if i == 'failed':
+        for counter, i in enumerate(index_upper):
+            if type(i)==str:
                 ne_upper.append([np.nan])          
                 sne_upper.append([np.nan])          
                 Te_upper.append([np.nan])          
                 sTe_upper.append([np.nan])          
                 t_upper.append([np.nan])
-
+                index_upper[counter] = int(i.split('_')[-1])
                 continue
             
             #filter out measurements that are nonexisting (file exists but fake measurement value for t = 0 is inserted)
@@ -377,20 +415,44 @@ def readLangmuirProbeDataFromXdrive(dischargeID: str,
         filter_indices_lower = []
         for LP_index_lower in LP_indices_lower:
             filter_indices_lower.append(index_lower.index(LP_index_lower))
-        ne_lower = np.array(ne_lower)[np.array(filter_indices_lower)]
-        sne_lower = np.array(sne_lower)[np.array(filter_indices_lower)]
-        Te_lower = np.array(Te_lower)[np.array(filter_indices_lower)]
-        sTe_lower = np.array(sTe_lower)[np.array(filter_indices_lower)]
-        t_lower = np.array(t_lower)[np.array(filter_indices_lower)]
+        if len(filter_indices_lower) != 0:
+            ne_lower = [ne_lower[i] for i in filter_indices_lower]
+            sne_lower = [sne_lower[i] for i in filter_indices_lower]
+            Te_lower = [Te_lower[i] for i in filter_indices_lower]
+            sTe_lower = [sTe_lower[i] for i in filter_indices_lower]
+            t_lower = [t_lower[i] for i in filter_indices_lower]
+            #ne_lower = np.array(ne_lower)[np.array(filter_indices_lower)]
+            #sne_lower = np.array(sne_lower)[np.array(filter_indices_lower)]
+            #Te_lower = np.array(Te_lower)[np.array(filter_indices_lower)]
+            #sTe_lower = np.array(sTe_lower)[np.array(filter_indices_lower)]
+            #t_lower = np.array(t_lower)[np.array(filter_indices_lower)]
+        else:
+            ne_lower = np.array([[np.nan]])          
+            sne_lower = np.array([[np.nan]])          
+            Te_lower = np.array([[np.nan]])          
+            sTe_lower = np.array([[np.nan]])          
+            t_lower = np.array([[np.nan]])
 
         filter_indices_upper = []
         for LP_index_upper in LP_indices_upper:
             filter_indices_upper.append(index_upper.index(LP_index_upper))
-        ne_upper = np.array(ne_upper)[np.array(filter_indices_upper)]
-        sne_upper = np.array(sne_upper)[np.array(filter_indices_upper)]
-        Te_upper = np.array(Te_upper)[np.array(filter_indices_upper)]
-        sTe_upper = np.array(sTe_upper)[np.array(filter_indices_upper)]
-        t_upper = np.array(t_upper)[np.array(filter_indices_upper)]
+        if len(filter_indices_upper) != 0:
+            ne_upper = [ne_upper[i] for i in filter_indices_upper]
+            sne_upper = [sne_upper[i] for i in filter_indices_upper]
+            Te_upper = [Te_upper[i] for i in filter_indices_upper]
+            sTe_upper = [sTe_upper[i] for i in filter_indices_upper]
+            t_upper = [t_upper[i] for i in filter_indices_upper]
+            #ne_upper = np.array(ne_upper)[np.array(filter_indices_upper)]
+            #sne_upper = np.array(sne_upper)[np.array(filter_indices_upper)]
+            #Te_upper = np.array(Te_upper)[np.array(filter_indices_upper)]
+            #sTe_upper = np.array(sTe_upper)[np.array(filter_indices_upper)]
+            #t_upper = np.array(t_upper)[np.array(filter_indices_upper)]
+        else:
+            ne_upper = np.array([[np.nan]])          
+            sne_upper = np.array([[np.nan]])          
+            Te_upper = np.array([[np.nan]])          
+            sTe_upper = np.array([[np.nan]])          
+            t_upper = np.array([[np.nan]])
 
         #careful, not all subarrays have the same shape
         #len(Te_upper[0]) == len(ne_upper[0]), but not neccessarily len(Te_upper[0]) == len(Te_upper[1])

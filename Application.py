@@ -16,6 +16,7 @@ import matplotlib
 
 import settings
 import src.readData as read
+import src.plotData as plot
 import src.processData as process 
 
 #avoids pop up of plot windows
@@ -27,7 +28,7 @@ matplotlib.use('agg')
 #list of all released configurations (date: 01. Dec. 2025) from W7X-info
 #-> alternativly, list of strings can be provided with a set/single configuration, e.g. ['EIM000+2520'] 
 #configurations = pd.read_csv('inputFiles/configurationListWithSettings.csv', sep=';')['configuration']
-configurations = ['EIM000+2520']
+configurations = ['DBM000+2520', 'FTM004+2520', 'KJM008+2520']
 
 #list of campaigns to be looked at, 'OP223' means OP2.2 and OP2.3
 campaigns = ['OP22' ,'OP23']    #['OP223', 'OP22', 'OP23']
@@ -77,17 +78,17 @@ if not run:
     exit()
 
 #read dischargeIDs, get corresponding configurations and campaigns
-#dischargeIDs, dischargeConfigurations, dischargeCampaigns = process.getDischargeIDsAndAttributes(dischargeIDs, campaigns, configurations, filterSelected, filesDischargesPerConfigurationExist)
+dischargeIDs, dischargeConfigurations, dischargeCampaigns = process.getDischargeIDsAndAttributes(dischargeIDs, campaigns, configurations, filterSelected, filesDischargesPerConfigurationExist)
 
 #get Langmuir Probe data and test it for indicators of shortening, results are saved as .csv file for each Langmuir Probe
 #-> saved under f"results/LP_{LP}/{LP}_dischargePlungeList_FailureIndicators.csv"
-#process.processLangmuirProbeData(LP_list, dischargeIDs, dischargeCampaigns, dischargeConfigurations, R_limit, V_min_ideal, V_max_ideal, V_tolerance, fetch=True, plottingRawData=plottingRawData, filesExist=filesDischargesPerLangmuirProbeExist)
+process.processLangmuirProbeData(LP_list, dischargeIDs, dischargeCampaigns, dischargeConfigurations, R_limit, V_min_ideal, V_max_ideal, V_tolerance, fetch=True, plottingRawData=plottingRawData, filesExist=filesDischargesPerLangmuirProbeExist)
 
 #test indicators for shortening, and select discharges and plunges that actually might have been subject to shortening while discarding working data 
 #results are saved in .csv file under f'results/LP_{LP}/{LP}failed_dischargePlungeList_FailureIndicators.csv' 
-#process.filterShorteningCandidatePlunges(LP_list, outliers_tolerance)
+process.filterShorteningCandidatePlunges(LP_list, outliers_tolerance)
 
-
+'''
 failureDataFrame = pd.read_csv(f'results/LP_50209/50209failed_dischargePlungeList_FailureIndicators.csv', sep=';', dtype={'dischargeID': str}) 
 
 failureDischargeIDs = np.unique(np.array(failureDataFrame['dischargeID']))
@@ -100,3 +101,6 @@ for failureDischargeID in failureDischargeIDs:
 uniqueFailureDataFrame = pd.DataFrame({'dischargeID': failureDischargeIDs, 'maxNumberOfFailureIndicators': maxFailureNumbersDischargeIDs})
 uniqueFailureDataFrame = uniqueFailureDataFrame.sort_values(['maxNumberOfFailureIndicators', 'dischargeID'], ascending=False)
 uniqueFailureDataFrame.to_csv(f'results/LP_50209/50209failed_dischargeList_maxFailureIndicators.csv', sep=';')
+'''
+
+plot.plotFailuresInDependanceOfX('configuration', '50209', 'OP223')
