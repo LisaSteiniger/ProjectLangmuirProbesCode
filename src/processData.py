@@ -42,8 +42,10 @@ def getDischargeIDsAndAttributes(dischargeIDs: list[str],
                 #find all discharge IDs according to the filters activated in "filterSelected" 
                 #usually filters by !conditioning, !gas valve tests, !sniffer tests, and configuration (internal filter of "read.readAllShotNumbersFromLogbook")
                 print('Logbook search: reading discharges for ' + configuration)
-                dischargeIDs.append(read.readAllShotNumbersFromLogbook(configuration, filterSelected, q_add=campaign, filesExist=filesExist)['dischargeID'])
-                dischargeConfigurations.append([configuration]*len(dischargeIDs[-1]))
+                results = read.readAllShotNumbersFromLogbook(configuration, filterSelected, q_add=campaign, filesExist=filesExist)
+                if type(results) != str:
+                    dischargeIDs.append(results['dischargeID'])
+                    dischargeConfigurations.append([configuration]*len(dischargeIDs[-1]))
             
             dischargeCampaigns.append([campaign]*len(list(itertools.chain.from_iterable(dischargeIDs))))
         
@@ -163,20 +165,25 @@ def processLangmuirProbeData(LP_list: list[str],
 
 #######################################################################################################################################################################        
 def filterShorteningCandidatePlunges(LP_list: list[str],
-                                     failureTolerance: int|float
-                                     ) -> list[list[list[str],list[int]]]:
+                                     failureTolerance: int|float,
+                                     ne_limits: list[int|float, int|float] =[1E+17, 3E+20],
+                                     Te_limits: list[int|float, int|float] =[5, 200],
+                                     ) -> list[list[list[str],list[int],list[int]]]:
     ''' This function filters the complete list of discharges and plunges with their failure indicators for real candidates of shortening
         -> if V_limit_change is True or V_limit_failure or R_limit_failure percentage is outside of failure tolerance
         -> number of applying indicators is counted and addes to the dataframe
         -> filtered discharges and plunges are written to dataframe and saved as .csv file under f'results/LP_{LP}/{LP}failed_dischargePlungeList_FailureIndicators.csv' 
-        returns list of discharge IDs that are probably subject to shortening and the max. number of indicators for all plunges of that discharge
-        -> for every Langmuir Probe x, y, z,..., a tuple LPx/y/z = [IDs, indicatorNumber] is returned in [LPx, LPy, LPz, ...]
+        returns list of discharge IDs that are probably subject to shortening, the max. number of indicators for all plunges of that discharge, and the number of plunges that are declared failed
+        -> for every Langmuir Probe x, y, z,..., a tuple LPx/y/z = [IDs, indicatorNumber, failed] is returned in [LPx, LPy, LPz, ...]
 
         "LP_list" is the list with Langmuir Probes that should be investigated (internal probe ID such as '50209')
-        "failureTolerance" is the percentage of allowed outliers of voltage extrema and averaged probe line resistances without declaring the plunge a candidate for shortening'''
+        "failureTolerance" is the percentage of allowed outliers of voltage extrema and averaged probe line resistances without declaring the plunge a candidate for shortening
+        "ne_limits" is a list of len(2) with [lowerLimit, upperLimit] for electron density of divertor plasmas in (m^-3)
+        "Te_limits" is like "ne_limits" but for electron temperature in (eV)'''
 
     failures = []
     for LP in LP_list:
+        dischargeFailed = []
         failureIndices = []
         numberOfFailureIndicatorsList = []
         V_limit_failure_yn_List = []
@@ -208,11 +215,19 @@ def filterShorteningCandidatePlunges(LP_list: list[str],
                 numberOfFailureIndicatorsList.append(numberOfFailureIndicators)
                 V_limit_failure_yn_List.append(V_limit_failure_yn)
                 R_limit_failure_yn_List.append(R_limit_failure_yn)
+                if shorteningIndicatorList['ne'][i] < ne_limits[0] or shorteningIndicatorList['ne'][i] > ne_limits[1]\
+                    or shorteningIndicatorList['Te'][i] < Te_limits[0] or shorteningIndicatorList['Te'][i] > Te_limits[1]:
+                    dischargeFailed.append(True)
+                elif numberOfFailureIndicators == 3:
+                    dischargeFailed.append(True)
+                else:
+                    dischargeFailed.append(False)
             
         failureIndices = np.array(failureIndices)
 
         failureDataFrame = pd.DataFrame({'LP': np.array(shorteningIndicatorList['LP'])[failureIndices],
                                         'campaign': np.array(shorteningIndicatorList['campaign'])[failureIndices],
+                                    
                                         'configuration': np.array(shorteningIndicatorList['configuration'])[failureIndices],
                                         'dischargeID': np.array(shorteningIndicatorList['dischargeID'])[failureIndices],
                                         'plunge': np.array(shorteningIndicatorList['plunge'])[failureIndices],
@@ -222,21 +237,39 @@ def filterShorteningCandidatePlunges(LP_list: list[str],
                                         'R_limit_failure': np.array(shorteningIndicatorList['R_limit_failure'])[failureIndices],
                                         'R_limit_failure_yn': R_limit_failure_yn_List,
                                         'numberOfFailureIndicators': numberOfFailureIndicatorsList,
+                                        'Failed': dischargeFailed,
+                                        
                                         'ne': np.array(shorteningIndicatorList['ne'])[failureIndices],
                                         'std_ne': np.array(shorteningIndicatorList['std_ne'])[failureIndices],
                                         'Te': np.array(shorteningIndicatorList['Te'])[failureIndices],
                                         'std_Te': np.array(shorteningIndicatorList['std_Te'])[failureIndices]})
     
-        failureDataFrame = failureDataFrame.sort_values(by=["numberOfFailureIndicators", 'V_limit_change', 'R_limit_failure', 'V_limit_failure'], ascending=False)
+        failureDataFrame = failureDataFrame.sort_values(by=['Failed', "numberOfFailureIndicators", 'V_limit_change', 'R_limit_failure', 'V_limit_failure'], ascending=False)
         failureDataFrame.to_csv(f'results/LP_{LP}/{LP}failed_dischargePlungeList_FailureIndicators.csv', sep=';') 
 
         failureDischargeIDs = np.unique(np.array(failureDataFrame['dischargeID']))
         maxFailureNumbersDischargeIDs = []
+        failedDischarges = []
+        failedDischargesConfig = []
+        failedDischargesOP = []
 
         for failureDischargeID in failureDischargeIDs:
             failureFilter = np.array([x == failureDischargeID for x in failureDataFrame['dischargeID']])
-            maxFailureNumbersDischargeIDs.append(np.max(np.array(failureDataFrame['numberOfFailureIndicators'])[failureFilter]))
-        
-        failures.append([failureDischargeIDs, maxFailureNumbersDischargeIDs])
+            failureFilterNan = np.array([x == failureDischargeID and not np.isnan(y) and not np.isnan(z) for x, y, z in zip(failureDataFrame['dischargeID'], failureDataFrame['ne'], failureDataFrame['Te'])])
+            if sum(failureFilterNan) != 0:
+                maxFailureNumbersDischargeIDs.append(np.max(np.array(failureDataFrame['numberOfFailureIndicators'])[failureFilterNan]))
+                failedDischarges.append(sum(np.array(failureDataFrame['Failed'])[failureFilterNan]))
+            else:
+                maxFailureNumbersDischargeIDs.append(0)
+                failedDischarges.append(0)
+
+            failedDischargesConfig.append(np.array(failureDataFrame['configuration'])[failureFilter][0])
+            failedDischargesOP.append(np.array(failureDataFrame['campaign'])[failureFilter][0])
+        failures.append([failureDischargeIDs, maxFailureNumbersDischargeIDs, failedDischarges, failedDischargesConfig, failedDischargesOP])
+
+    for counter, LP in enumerate(LP_list):
+        uniqueFailureDataFrame = pd.DataFrame({'dischargeID': failures[counter][0], 'maxNumberOfFailureIndicators': failures[counter][1], 'numberOfFailedPlunges': failures[counter][2], 'configuration': failures[counter][3], 'campaign': failures[counter][4]})
+        uniqueFailureDataFrame = uniqueFailureDataFrame.sort_values(['numberOfFailedPlunges', 'maxNumberOfFailureIndicators', 'dischargeID'], ascending=False)
+        uniqueFailureDataFrame.to_csv(f'results/LP_{LP}/{LP}failed_dischargeList_maxFailureIndicators.csv', sep=';')
     
     return failures

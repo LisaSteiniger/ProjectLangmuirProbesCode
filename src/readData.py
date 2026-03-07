@@ -80,6 +80,9 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
     #quantity: input voltage is strored as probe.input_voltage
     probe.get_input_voltage()
 
+    #quantity: reference voltage is strored as probe.reference_voltage
+    probe.get_reference_voltage()
+
     #get the plunge times as probe.pop_up_time (set time instances for the diagnostic) 
     #-> has a 1 sec delay, real plunging in time is (probe.pop_up_time - 1) sec
     plunges = np.array(probe.pop_up_time) - 1
@@ -175,7 +178,11 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
             print(f'Shortening in {dischargeID} plunge {counter}?: voltage extrema range changes more than the allowed {str(abs(V_max_max - V_min_min)*V_tolerance)} V')
 
         #investigate probe line resistance
-        R_probeLine = abs(probe.input_voltage[voltage_timeHold_filter]/probe.probe_current[voltage_timeHold_filter])
+        if V_limit_failure[-1] > 0.03 or V_limit_change[-1]:
+            R_probeLine = abs(probe.input_voltage[voltage_timeHold_filter]/probe.probe_current[voltage_timeHold_filter])
+        else: 
+            R_probeLine = abs(50/(probe.reference_voltage[voltage_timeHold_filter]/probe.probe_voltage[voltage_timeHold_filter] - 1))
+
         if len(R_probeLine) > 50:
             R_probeLine_av = list(itertools.chain.from_iterable([[np.mean(x)] * len(x) for x in np.array_split(R_probeLine, len(R_probeLine)/50)]))
         else:
@@ -199,21 +206,27 @@ def readLangmuirProbeOperationalParameters(dischargeID: str,
             ax1.plot(probe.time[voltage_timeHold_filter][shortening_R], probe.probe_voltage[voltage_timeHold_filter][shortening_R], 'cx')
             ax1.plot(probe.time[timefilter], probe.probe_voltage[timefilter], 'k-')
             ax1.axvspan(t_hold_start, t_hold_stop, color='darkgrey')
-            ax1.set_ylabel('probe voltage\nin (V)')
+            ax1.set_ylabel('probe voltage\nin (V)', fontsize=settings.labelsize)
+            #ax1.tick_params(axis='x', labelsize = settings.scalesize)
+            ax1.tick_params(axis='y', labelsize = settings.scalesize)
 
             ax2.plot(probe.time[voltage_timeHold_filter][shortening_R], probe.probe_current[voltage_timeHold_filter][shortening_R], 'cx')
             ax2.plot(probe.time[timefilter], probe.probe_current[timefilter], 'k-')
             ax2.axvspan(t_hold_start, t_hold_stop, color='darkgrey')
-            ax2.set_ylabel('probe current\nin (A)')
-            
+            ax2.set_ylabel('probe current\nin (A)', fontsize=settings.labelsize)
+            #ax2.tick_params(axis='x', labelsize = settings.scalesize)
+            ax2.tick_params(axis='y', labelsize = settings.scalesize)
+
             ax3.plot(probe.time[voltage_timeHold_filter][shortening_R], R_probeLine[shortening_R], 'cx')
             ax3.plot(probe.time[voltage_timeHold_filter], R_probeLine, 'k-')
             ax3.plot(probe.time[voltage_timeHold_filter], R_probeLine_av, 'r-')
             ax3.axvspan(t_hold_start, t_hold_stop, color='darkgrey')
-            ax3.set_ylabel('probe line\nresistance\nin (Ohm)')
-            ax3.set_xlabel('time in (s) since beginning of discharge')
-        
-            plt.figtext(0.5, 1.01, f'Langmuir Probe {LP}: {dischargeID} plunge {str(counter)}', horizontalalignment='center')
+            ax3.set_ylabel('probe line\nresistance\nin (Ohm)', fontsize=settings.labelsize)
+            ax3.set_xlabel('time in (s) since beginning of discharge', fontsize=settings.labelsize)
+            ax3.tick_params(axis='x', labelsize = settings.scalesize)
+            ax3.tick_params(axis='y', labelsize = settings.scalesize)
+
+            plt.figtext(0.5, 1.01, f'Langmuir Probe {LP}: {dischargeID} plunge {str(counter)}', horizontalalignment='center', fontsize=settings.labelsize)
         
             fig.savefig(f'{safe}{LP}/{dischargeID}_plunge{str(counter)}.png', bbox_inches='tight')
             plt.show()
@@ -316,6 +329,7 @@ def readLangmuirProbeDataFromXdrive(dischargeID: str,
     for LP in LPs_upper:
         if LP in probes_upper:
             LP_indices_upper.append(probes_upper.index(LP))
+        else:
             raise ValueError(f'{LP} is no upper divertor Langmuir Probe')
 
     #index lists for each divertor unit in case that all LPs were active

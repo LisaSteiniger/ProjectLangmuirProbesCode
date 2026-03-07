@@ -27,8 +27,12 @@ matplotlib.use('agg')
 
 #list of all released configurations (date: 01. Dec. 2025) from W7X-info
 #-> alternativly, list of strings can be provided with a set/single configuration, e.g. ['EIM000+2520'] 
-#configurations = pd.read_csv('inputFiles/configurationListWithSettings.csv', sep=';')['configuration']
-configurations = ['DBM000+2520', 'FTM004+2520', 'KJM008+2520']
+configurations = pd.read_csv('inputFiles/configurationListWithSettings.csv', sep=';')['configuration']
+#configurations.remove('DBM000+2520')
+#configurations.remove('FTM004+2520')
+#configurations.remove('KJM008+2520')
+#configurations.remove('EIM000+2520')
+#configurations = ['DBM000+2520', 'FTM004+2520', 'KJM008+2520']
 
 #list of campaigns to be looked at, 'OP223' means OP2.2 and OP2.3
 campaigns = ['OP22' ,'OP23']    #['OP223', 'OP22', 'OP23']
@@ -37,7 +41,7 @@ campaigns = ['OP22' ,'OP23']    #['OP223', 'OP22', 'OP23']
 filterSelected = settings.q1 + settings.q2 + settings.q3
 
 #Langmuir Probes that should be investigated
-LP_list = ['50209']
+LP_list = ['50209', '51222'] #['50209']
 
 #discharges to be looked at
 #leave blank if list is given by campaign and configuration
@@ -47,7 +51,7 @@ dischargeIDs = [] #['20241127.010', '20241105.067']
 #limits of voltage range and averaged probe line resistance in (V) and (Ohm)
 V_min_ideal=-180
 V_max_ideal=20
-R_limit=300
+R_limit=50
 
 #tolerance for voltage range and outliers of voltage extrema and average probe line resistance
 V_tolerance = 0.05          #voltage extrema are ok if in [V_min_ideal + (V_max_ideal - V_min_ideal)*V_tolerance, V_max_ideal - (V_max_ideal - V_min_ideal)*V_tolerance]
@@ -98,9 +102,9 @@ for failureDischargeID in failureDischargeIDs:
     failureFilter = np.array([x == failureDischargeID for x in failureDataFrame['dischargeID']])
     maxFailureNumbersDischargeIDs.append(np.max(np.array(failureDataFrame['numberOfFailureIndicators'])[failureFilter]))
 
-uniqueFailureDataFrame = pd.DataFrame({'dischargeID': failureDischargeIDs, 'maxNumberOfFailureIndicators': maxFailureNumbersDischargeIDs})
-uniqueFailureDataFrame = uniqueFailureDataFrame.sort_values(['maxNumberOfFailureIndicators', 'dischargeID'], ascending=False)
-uniqueFailureDataFrame.to_csv(f'results/LP_50209/50209failed_dischargeList_maxFailureIndicators.csv', sep=';')
 '''
 
 plot.plotFailuresInDependanceOfX('configuration', '50209', 'OP223')
+plot.plotFailuresInDependanceOfX('configuration', '51222', 'OP223')
+plot.plotFailuresInDependanceOfX('configurationShort', '50209', 'OP223')
+plot.plotFailuresInDependanceOfX('configurationShort', '51222', 'OP223')
